@@ -10,87 +10,109 @@ import numpy as np
 import netCDF4 as nc
 
 DEBUG = True
+
 class App:
     def __init__(self, root):
         self.root = root
-        self.root.geometry("600x600")
+        self.root.geometry("800x800")
         self.root.title("Panopoly who?")
 
-        self.file_path = ""
+        self.filePath = ""
         self.data = None
         self.axis1 = tk.StringVar()
         self.axis2 = tk.StringVar()
+        self.plotType = tk.StringVar()
 
-        self.set_menu()
+        self.plotTypes = ["Line Plot", "Color Map"]
+
+        self.set_main_menu()
         self.create_widgets()
+
+        if DEBUG:
+            self.filePath = "/Users/grhuber/Downloads/2018_High_Vertical.geosgcm_gwd.20180201.nc4"
+            self.load_data()
     
-    def set_menu(self):
-        self.menubar = tk.Menu(self.root)
-        self.filemenu = tk.Menu(self.menubar, tearoff=0)
-        self.filemenu.add_command(label="New", command=None)
-        self.filemenu.add_command(label="Open", command=self.select_file)
-        self.filemenu.add_command(label="Save", command=None)
-        self.filemenu.add_separator()
-        self.filemenu.add_command(label="Quit", command=self.root.quit)
-        self.menubar.add_cascade(label="File", menu=self.filemenu)
-        self.root.config(menu=self.menubar)
+    def set_main_menu(self):
+        self.menuBar = tk.Menu(self.root)
+        self.fileMenu = tk.Menu(self.menuBar, tearoff=0)
+        self.fileMenu.add_command(label="New", command=None)
+        self.fileMenu.add_command(label="Open", command=self.select_file)
+        self.fileMenu.add_command(label="Save", command=None)
+        self.fileMenu.add_separator()
+        self.fileMenu.add_command(label="Quit", command=self.root.quit)
+        self.menuBar.add_cascade(label="File", menu=self.fileMenu)
+        self.root.config(menu=self.menuBar)
 
     def create_widgets(self):
         self.frm = ttk.Frame(self.root)
         self.frm.grid()
         ttk.Label(self.frm, text="Panopoly The Sequel", padding=10).grid(column=0, row=0)
 
-        self.axisdrop1 = ttk.OptionMenu( self.frm, self.axis1 ) 
-        self.axisdrop1.grid(row=1, column=1)
+        self.axis1Drop = ttk.OptionMenu(self.frm, self.axis1) 
+        self.axis1Drop.grid(row=2, column=1)
 
-        self.axisdrop2 = ttk.OptionMenu( self.frm, self.axis2 ) 
-        self.axisdrop2.grid(row=1, column=2)
+        self.axis2Drop = ttk.OptionMenu(self.frm, self.axis2) 
+        self.axis2Drop.grid(row=2, column=2)
 
-        ttk.Button(self.frm, text="New Plot discovered click HERE (not a scam)", command=self.plot).grid(column=0, row=1)
+        ttk.Button(self.frm, text="PLOT", command=self.plot).grid(column=0, row=2)
+        self.plotTypeDrop = ttk.OptionMenu( self.frm, self.plotType, self.plotTypes[0], *self.plotTypes) 
+        self.plotTypeDrop.grid(row=1, column=0)
     def select_file(self):
-        self.file_path = askopenfilename()
-        if self.file_path:
+        self.filePath = askopenfilename()
+        if self.filePath:
             self.load_data()
 
 
     def load_data(self):
         try:
-            self.data = nc.Dataset(self.file_path)
+            self.data = nc.Dataset(self.filePath)
             self.update_properties_dropdown()
         except Exception as e:
             tk.messagebox.showerror("Error", f"Failed to load NetCDF file: {e}")
-            self.file_path = ""
+            self.filePath = ""
             self.data = None
 
     def update_properties_dropdown(self):
         if self.data:
             variables = self.data.variables.keys()
-            self.axisdrop1['menu'].delete(0, 'end')
+            self.axis1Drop['menu'].delete(0, 'end')
             for prop in variables:
-                self.axisdrop1['menu'].add_command(label=prop, command=tk._setit(self.axis1, prop))
-                self.axisdrop2['menu'].add_command(label=prop, command=tk._setit(self.axis2, prop))
+                self.axis1Drop['menu'].add_command(label=prop, command=tk._setit(self.axis1, prop))
+                self.axis2Drop['menu'].add_command(label=prop, command=tk._setit(self.axis2, prop))
             self.axis1.set(list(variables)[0]) # Set default property
             self.axis2.set(list(variables)[0]) # Set default property
     
     def plot(self):
-        if not self.data or not self.axis1.get() or not self.axis2.get():
-            ttk.messagebox.showerror("Error", "No NetCDF file loaded.")
+        if not self.data:
+            tk.messagebox.showerror("Error", "No NetCDF file loaded.")
             return
-        fig = Figure(figsize = (5, 5), 
+        fig = Figure(figsize = (8, 8), 
                  dpi = 100) 
         subplot = fig.add_subplot(111) 
-        axis1name = self.axis1.get()
-        propdata1 = self.data.variables[axis1name][:]
-        subplot.set_xlabel(axis1name)
-        if not DEBUG:
-            axis2name = self.axis2.get()
-            propdata2 = self.data.variables[axis2name][:]
-            subplot.set_ylabel(axis2name)
-        subplot.plot(*([propdata1] if DEBUG else [propdata1, propdata2]))
-        subplot.set_title("{} vs. {}".format(axis1name, axis2name if not DEBUG else "Index..."))
+        plotType = self.plotType.get()
+        if plotType == "Line Plot":
+            axis1Name = self.axis1.get()
+            axis1Data = self.data.variables[axis1Name][:]
+            subplot.set_xlabel(axis1Name)
+            axis2Name = self.axis2.get()
+            axis2Data = self.data.variables[axis2Name][:]
+            subplot.set_ylabel(axis2Name)
+            try:
+                subplot.plot(axis1Data, axis2Data)
+            except ValueError:
+                tk.messagebox.showerror("Error", "Axis Dimensions do not match\naxis 1 with size: {}\naxis 2 with size:{}".format(axis1Data.shape, axis2Data.shape))
+                return
+            subplot.set_title("{} vs. {}".format(axis1Name, axis2Name))
+        elif plotType == "Color Map":
+            axis1Name = self.axis1.get()
+            axis1Data = self.data.variables[axis1Name][:]
+            mesh = subplot.pcolormesh(self.data.variables[axis1Name][0, 0, :, :])
+            fig.colorbar(mesh, ax=subplot)
+            subplot.set_title("{}".format(self.data.variables[axis1Name].long_name))
+
         canvas = FigureCanvasTkAgg(fig, master=self.frm)   
-        canvas.draw() 
-        canvas.get_tk_widget().grid(row=2,column=0)
+        canvas.draw()
+        canvas.get_tk_widget().grid(row=3,column=0)
 
 def main():
     matplotlib.use('agg')  
