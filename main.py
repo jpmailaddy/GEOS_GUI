@@ -17,6 +17,7 @@ class App:
         self.root.title("Panopoly who?")
 
         self.file_path = ""
+        self.data = None
         self.axis1 = tk.StringVar()
         self.axis2 = tk.StringVar()
 
@@ -86,7 +87,7 @@ class App:
             propdata2 = self.data.variables[axis2name][:]
             subplot.set_ylabel(axis2name)
         subplot.plot(*([propdata1] if DEBUG else [propdata1, propdata2]))
-        subplot.set_title(f"{axis1name} vs. {axis2name if not DEBUG else "Index..."}")
+        subplot.set_title("{} vs. {}".format(axis1name, axis2name if not DEBUG else "Index..."))
         canvas = FigureCanvasTkAgg(fig, master=self.frm)   
         canvas.draw() 
         canvas.get_tk_widget().grid(row=2,column=0)
