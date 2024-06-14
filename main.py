@@ -154,7 +154,8 @@ class App:
         elif plotType == "Color Map":
             axis1Name = self.axis1.get()
             axis1Data = self.data.variables[axis1Name][:]
-            mesh = subplot.pcolormesh(self.data.variables[axis1Name][*[int(x.get()) for x in self.extraDimSelector.dimVars], :, :])
+            #TODO: refactor
+            mesh = subplot.pcolormesh(self.data.variables[axis1Name][tuple([int(x.get()) for x in self.extraDimSelector.dimVars])][:,:])
             fig.colorbar(mesh, ax=subplot)
             subplot.set_title("{}".format(self.data.variables[axis1Name].long_name))
 
