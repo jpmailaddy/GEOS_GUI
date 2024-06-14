@@ -9,7 +9,9 @@ from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg)
 import numpy as np
 import netCDF4 as nc
 
-DEBUG = False
+import utils
+
+DEBUG = True
 
 class App:
     def __init__(self, root):
@@ -31,13 +33,14 @@ class App:
         self.plotTypes = ["Line Plot", "Color Map"]
 
         self.create_plot_frame()
-        # self.create_data_view_frame()
+        self.create_data_view_frame()
         self.set_main_menu()
         self.set_active(self.frm)
 
         if DEBUG:
             self.filePath = "/Users/grhuber/Downloads/2018_High_Vertical.geosgcm_gwd.20180201.nc4"
             self.load_data()
+            
     
     def set_main_menu(self):
         self.menuBar = tk.Menu(self.root)
@@ -60,19 +63,32 @@ class App:
         self.frm.grid(column=0, row=0,sticky ="nsew")
         ttk.Label(self.frm, text="Panopoly The Sequel", padding=10).grid(column=0, row=0)
 
+        
         self.axis1Drop = ttk.OptionMenu(self.frm, self.axis1) 
         self.axis1Drop.grid(row=2, column=1)
 
         self.axis2Drop = ttk.OptionMenu(self.frm, self.axis2) 
         self.axis2Drop.grid(row=2, column=2)
+    
+    
+        self.axis1Drop = ttk.OptionMenu(self.frm, self.axis1) 
+        self.axis1Drop.grid(row=2, column=1)
+
+        self.extraDimSelector = ttk.Frame(self.frm)
+        self.extraDimSelector.grid(row=2, column=2)
+
 
         ttk.Button(self.frm, text="PLOT", command=self.plot).grid(column=0, row=2)
-        self.plotTypeDrop = ttk.OptionMenu( self.frm, self.plotType, self.plotTypes[0], *self.plotTypes) 
+        self.plotTypeDrop = ttk.OptionMenu( self.frm, self.plotType, self.plotTypes[0], *self.plotTypes, command=self.set_plot_type_handler) 
         self.plotTypeDrop.grid(row=1, column=0)
 
     def create_data_view_frame(self):
-        self.frm2 = ttk.Frame(self.root)
-        self.frm2.grid(column=0, row=0,sticky ="nsew")
+        if self.frm2:
+            utils.destroy_children(self.frm2)
+        else:
+            self.frm2 = ttk.Frame(self.root)
+            self.frm2.grid(column=0, row=0,sticky ="nsew")
+        # TODO: fix window management adn the current variable
         ttk.Label(self.frm2, text="Data Properties", padding=10).grid(column=0, row=0)
         ttk.Label(self.frm2, text="Metadata").grid()
         if self.data:
@@ -102,15 +118,15 @@ class App:
             return
         self.update_properties_dropdown()
         self.create_data_view_frame()
-        self.set_active(self.curFrame)
+        # self.set_active(self.curFrame)
 
     def update_properties_dropdown(self):
         if self.data:
             variables = self.data.variables.keys()
             self.axis1Drop['menu'].delete(0, 'end')
             for prop in variables:
-                self.axis1Drop['menu'].add_command(label=prop, command=tk._setit(self.axis1, prop))
-                self.axis2Drop['menu'].add_command(label=prop, command=tk._setit(self.axis2, prop))
+                self.axis1Drop['menu'].add_command(label=prop, command=lambda prop=prop: self.set_axis_handler(self.axis1Drop, self.axis1, prop))
+                self.axis2Drop['menu'].add_command(label=prop, command=lambda prop=prop: self.set_axis_handler(self.axis2Drop, self.axis2, prop))
             self.axis1.set(list(variables)[0]) # Set default property
             self.axis2.set(list(variables)[0]) # Set default property
     
@@ -138,7 +154,7 @@ class App:
         elif plotType == "Color Map":
             axis1Name = self.axis1.get()
             axis1Data = self.data.variables[axis1Name][:]
-            mesh = subplot.pcolormesh(self.data.variables[axis1Name][0, 0, :, :])
+            mesh = subplot.pcolormesh(self.data.variables[axis1Name][*[int(x.get()) for x in self.extraDimSelector.dimVars], :, :])
             fig.colorbar(mesh, ax=subplot)
             subplot.set_title("{}".format(self.data.variables[axis1Name].long_name))
 
@@ -149,6 +165,34 @@ class App:
     def set_active(self, frm):
         frm.tkraise()
         self.curFrame = frm
+    
+    def set_plot_type_handler(self, event):
+        if event == "Line Plot":
+            self.axis1Drop.grid(row=2, column=1)
+            self.axis2Drop.grid(row=2, column=2)
+            self.extraDimSelector.grid_forget()
+        elif event == "Color Map":
+            self.axis1Drop.grid(row=2, column=1)
+            self.axis2Drop.grid_forget()
+            self.extraDimSelector.grid(row=2, column=2)
+            self.set_axis_handler(self.axis1Drop, self.axis1, self.axis1.get())
+    
+    def set_axis_handler(self, axisDrop, var, prop):
+        var.set(prop)
+        plotType = self.plotType.get()
+        # TODO: change string constants to enums
+        if plotType == "Color Map":
+            utils.destroy_children(self.extraDimSelector)
+            num_dims = len(self.data.variables[prop].shape)
+            # for now assume the last 2 dimensions are lon & lat
+            self.extraDimSelector.dimVars = []
+            for dim in range(num_dims - 2):
+                dimLabel = ttk.Label(self.extraDimSelector, text=self.data[prop].dimensions[dim])
+                dimLabel.grid()
+                self.extraDimSelector.dimVars.append(tk.StringVar())
+                self.extraDimSelector.dimVars[-1].set("0")
+                dimSelector = ttk.Combobox(self.extraDimSelector, values=[str(x) for x in range(self.data[prop].shape[dim])], textvariable=self.extraDimSelector.dimVars[-1])
+                dimSelector.grid()
 
 def main():
     matplotlib.use('agg')  
